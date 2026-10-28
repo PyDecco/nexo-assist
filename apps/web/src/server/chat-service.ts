@@ -70,6 +70,9 @@ export class ChatService {
 
   newConversation(user: User): Conversation {
     const latest = this.deps.store.latestConversation(user.email);
+    if (latest && (latest.state === 'waiting_analyst' || latest.state === 'with_analyst')) {
+      throw new ChatError('INVALID', 'Você está sendo atendido por um analista. Aguarde ele encerrar ou devolver a conversa.');
+    }
     if (latest && latest.state !== 'closed') {
       this.deps.store.updateConversation(latest.id, { state: 'closed', closedAt: this.now().toISOString() });
       this.system(latest.id, 'Conversa encerrada pelo funcionário');
@@ -87,13 +90,15 @@ export class ChatService {
     if (!text) throw new ChatError('INVALID', 'Mensagem vazia');
     let conv = this.owned(conversationId, user);
     if (conv.state === 'closed') throw new ChatError('CLOSED', 'Esta conversa foi encerrada. Inicie uma nova.');
-    if (conv.userMessageCount >= MESSAGE_LIMIT) {
+    // O limite de 30 vale para a conversa com o agent; falar com um analista não consome a cota.
+    const toAgent = conv.state === 'with_agent';
+    if (toAgent && conv.userMessageCount >= MESSAGE_LIMIT) {
       throw new ChatError('LIMIT', `Limite de ${MESSAGE_LIMIT} mensagens desta sessão atingido. Inicie uma nova conversa.`);
     }
 
     const previous = this.deps.store.listMessages(conv.id, HISTORY_WINDOW);
     this.deps.store.addMessage({ conversationId: conv.id, role: 'user', authorName: user.name, text, actions: [], cards: [] });
-    conv = this.deps.store.updateConversation(conv.id, { userMessageCount: conv.userMessageCount + 1 });
+    if (toAgent) conv = this.deps.store.updateConversation(conv.id, { userMessageCount: conv.userMessageCount + 1 });
 
     // Com um analista (ou aguardando um), o agent não responde (Anexo A).
     if (conv.state !== 'with_agent') {
@@ -110,6 +115,7 @@ export class ChatService {
     let transfer: TransferRequest | undefined;
     let pendingDraft: PendingDraft | null = conv.pendingDraft;
     let draftShown = false;
+    let draftChanged = false;
     let failed = false;
     const memory = { ...conv.memory };
 
@@ -146,6 +152,7 @@ export class ChatService {
       pendingDraft,
       setPendingDraft: (d) => {
         pendingDraft = d;
+        draftChanged = true;
         ctx.pendingDraft = d;
       },
       newId: () => randomUUID(),
@@ -185,6 +192,11 @@ export class ChatService {
       emit({ type: 'card', card });
     }
 
+    // Um analista pode ter assumido ou encerrado durante o turno: nesse caso não transferimos nem sobrescrevemos o estado.
+    const latest = this.deps.store.getConversation(conv.id);
+    const stillWithAgent = latest?.state === 'with_agent';
+    if (!stillWithAgent) transfer = undefined;
+
     this.deps.store.addMessage({
       id: messageId,
       conversationId: conv.id,
@@ -198,14 +210,13 @@ export class ChatService {
     });
     conv = this.deps.store.updateConversation(conv.id, {
       memory,
-      pendingDraft,
-      draftMessageId: draftShown ? messageId : conv.draftMessageId,
+      ...(draftChanged && stillWithAgent ? { pendingDraft, draftMessageId: draftShown ? messageId : null } : {}),
     });
 
     if (transfer) {
       conv = await this.applyTransfer(conv, transfer, decision.confidence);
-      emit({ type: 'state', state: conv.state });
     }
+    if (transfer || !stillWithAgent) emit({ type: 'state', state: conv.state });
     emit({ type: 'done', messageId });
   }
 
@@ -215,6 +226,10 @@ export class ChatService {
     const pending = conv.pendingDraft;
     if (!pending) throw new ChatError('INVALID', 'Não há rascunho aguardando confirmação.');
     if (conv.state !== 'with_agent') throw new ChatError('INVALID', 'A conversa está com um analista.');
+    // Reivindica o rascunho antes de chamar o legado (o SQLite é síncrono): uma segunda confirmação
+    // simultânea encontra o rascunho vazio e não cria outro chamado.
+    const draftMessageId = conv.draftMessageId;
+    this.deps.store.updateConversation(conv.id, { pendingDraft: null });
 
     let ticket: Ticket;
     let text: string;
@@ -246,6 +261,7 @@ export class ChatService {
         }
       }
     } catch (err) {
+      this.deps.store.updateConversation(conv.id, { pendingDraft: pending, draftMessageId });
       if (err instanceof TicketsUnavailableError) {
         throw new ChatError('UNAVAILABLE', 'O sistema de chamados está instável. Seu rascunho continua salvo — tente confirmar de novo em instantes.');
       }
@@ -367,13 +383,14 @@ export class ChatService {
     const text = rawText.trim().slice(0, 2000);
     if (!text) throw new ChatError('INVALID', 'Mensagem vazia');
     const conv = this.consoleConversation(conversationId);
+    if (conv.state === 'closed') throw new ChatError('CLOSED', 'Conversa encerrada.');
     if (conv.state !== 'with_analyst' || conv.assignedAnalyst !== analyst.email) throw new ChatError('FORBIDDEN', 'Assuma o atendimento para responder.');
     return this.deps.store.addMessage({ conversationId: conv.id, role: 'analyst', authorName: `${analyst.name}|${analyst.team ?? 'Suporte'}`, text, actions: [], cards: [] });
   }
 
   returnToAgent(conversationId: string, analyst: User): Conversation {
     const conv = this.consoleConversation(conversationId);
-    if (conv.state === 'closed') throw new ChatError('CLOSED', 'Conversa encerrada.');
+    this.ensureCanAct(conv, analyst);
     const next = this.deps.store.updateConversation(conv.id, {
       state: 'with_agent',
       assignedAnalyst: null,
@@ -386,6 +403,7 @@ export class ChatService {
 
   close(conversationId: string, analyst: User): Conversation {
     const conv = this.consoleConversation(conversationId);
+    this.ensureCanAct(conv, analyst);
     const next = this.deps.store.updateConversation(conv.id, { state: 'closed', closedAt: this.now().toISOString() });
     this.system(conv.id, `Atendimento encerrado por ${analyst.name} · ${formatTime(this.now().toISOString())}`);
     return next;
@@ -428,6 +446,14 @@ export class ChatService {
     // Privacidade: um funcionário só acessa as próprias conversas.
     if (conv.userEmail !== user.email) throw new ChatError('FORBIDDEN', 'Conversa de outro usuário');
     return conv;
+  }
+
+  /** Só quem assumiu pode devolver/encerrar; conversas aguardando podem ser tratadas por qualquer analista. */
+  private ensureCanAct(conv: Conversation, analyst: User) {
+    if (conv.state === 'closed') throw new ChatError('CLOSED', 'Conversa encerrada.');
+    if (conv.state === 'with_analyst' && conv.assignedAnalyst !== analyst.email) {
+      throw new ChatError('FORBIDDEN', 'Outro analista está atendendo esta conversa.');
+    }
   }
 
   private consoleConversation(conversationId: string): Conversation {
