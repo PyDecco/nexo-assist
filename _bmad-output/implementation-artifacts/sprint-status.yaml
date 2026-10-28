@@ -35,27 +35,27 @@ project_key: NOKEY
 tracking_system: file-system
 story_location: _bmad-output/implementation-artifacts
 development_status:
-  epic-1: backlog
-  1-1-monorepo-tooling-e-ci: backlog
+  epic-1: done
+  1-1-monorepo-tooling-e-ci: done
   epic-1-retrospective: optional
 
-  epic-2: backlog
-  2-1-regras-do-anexo-a-em-packages-core: backlog
-  2-2-serviço-de-chamados-simulado-legado: backlog
-  2-3-cliente-http-resiliente: backlog
+  epic-2: done
+  2-1-regras-do-anexo-a-em-packages-core: done
+  2-2-serviço-de-chamados-simulado-legado: done
+  2-3-cliente-http-resiliente: done
   epic-2-retrospective: optional
 
-  epic-3: backlog
-  3-1-tools-e-central-de-ajuda: backlog
-  3-2-agent-mastra-com-gemini-e-runner-determinístico: backlog
+  epic-3: done
+  3-1-tools-e-central-de-ajuda: done
+  3-2-agent-mastra-com-gemini-e-runner-determinístico: done
   epic-3-retrospective: optional
 
-  epic-4: backlog
-  4-1-login-sessão-e-meu-perfil: backlog
-  4-2-chat-do-funcionário-com-streaming-e-transparência: backlog
-  4-3-console-do-analista: backlog
+  epic-4: done
+  4-1-login-sessão-e-meu-perfil: done
+  4-2-chat-do-funcionário-com-streaming-e-transparência: done
+  4-3-console-do-analista: done
   epic-4-retrospective: optional
 
-  epic-5: backlog
-  5-1-testes-ponta-a-ponta-e-readme: backlog
+  epic-5: done
+  5-1-testes-ponta-a-ponta-e-readme: done
   epic-5-retrospective: optional
