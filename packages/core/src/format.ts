@@ -8,7 +8,7 @@ export function relativeTime(iso: string, now: Date): string {
   if (minutes < 60) return `há ${minutes} min`;
   const hours = Math.round(minutes / 60);
   if (hours < 24) return `há ${hours} h`;
-  const days = Math.floor(diff / DAY_MS);
+  const days = Math.round(diff / DAY_MS);
   if (days === 1) return 'há 1 dia';
   if (days < 7) return `há ${days} dias`;
   if (days < 14) return 'há 1 semana';
