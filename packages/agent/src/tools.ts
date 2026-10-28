@@ -143,14 +143,14 @@ export function createTools(ctx: TurnContext) {
       ctx.memory.awaiting = undefined;
       return {
         found: true,
-        ticket: { ...compact(view), description: view.description, lastEvent: view.lastEvent?.text },
-        guidance: view.overdue
+        replyHint: view.overdue
           ? `VENCIDO: diga que está sem atualização ${view.lastUpdateLabel}, acima do prazo de ${view.slaLabel} para prioridade ${view.priorityLabel.toLowerCase()}, e pergunte se quer chamar um analista com askWithOptions(["Falar com um analista","Adicionar informação","Não, obrigado"]).`
           : view.open
             ? `Dentro do prazo (${view.dueLabel ?? 'sem prazo correndo'}). Diga o status em uma frase.`
             : view.reopenable
               ? 'Resolvido há até 7 dias: pode ser reaberto se o problema voltou.'
               : 'Encerrado.',
+        ticket: { ...compact(view), description: view.description, lastEvent: view.lastEvent?.text },
       };
     },
   });

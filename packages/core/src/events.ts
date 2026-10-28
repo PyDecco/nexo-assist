@@ -44,8 +44,8 @@ export interface Decision {
   /** 0 a 1. */
   confidence: number;
   reasoning: string;
-  /** "model" quando o agent registrou; "synthesized" quando o orquestrador inferiu do rastro. */
-  source: 'model' | 'synthesized';
+  /** "model": registrada pelo agent; "synthesized": inferida do rastro; "rule": ação determinística (ex.: confirmação). */
+  source: 'model' | 'synthesized' | 'rule';
 }
 
 export interface TicketDraft {

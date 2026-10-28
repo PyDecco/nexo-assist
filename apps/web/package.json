@@ -1,0 +1,28 @@
+{
+  "name": "@nexo/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start --port 3000",
+    "seed:reset": "node -e \"for (const s of ['','-wal','-shm']) require('fs').rmSync('../../data/web.db'+s,{force:true})\"",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@nexo/agent": "workspace:*",
+    "@nexo/core": "workspace:*",
+    "@nexo/tickets-client": "workspace:*",
+    "lucide-react": "^1.62.0",
+    "next": "^16.4.3",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "server-only": "^0.0.1"
+  },
+  "devDependencies": {
+    "@nexo/tickets-service": "workspace:*",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0"
+  }
+}
