@@ -5,6 +5,10 @@ node_modules/
 dist/
 .next/
 coverage/
+data/
 *.sqlite
 *.db
+*.db-*
 .DS_Store
+*.tsbuildinfo
+next-env.d.ts
