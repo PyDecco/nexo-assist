@@ -53,15 +53,19 @@ export function ChatView() {
     void load();
   }, [load]);
 
-  // Com um analista, as mensagens dele chegam por polling.
+  // Mensagens do analista (e mudanças de estado feitas no console) chegam por polling.
+  // Nunca durante um envio, para não sobrescrever a resposta que está chegando pelo stream.
+  const convId = conv?.id;
+  const convState = conv?.state;
   useEffect(() => {
-    if (!conv || (conv.state !== 'waiting_analyst' && conv.state !== 'with_analyst')) return;
+    if (!convId || sending || convState === 'closed') return;
+    const every = convState === 'with_agent' ? 6000 : 3000;
     const id = setInterval(async () => {
-      const res = await fetch(`/api/conversations/${conv.id}/messages`, { cache: 'no-store' }).catch(() => null);
+      const res = await fetch(`/api/conversations/${convId}/messages`, { cache: 'no-store' }).catch(() => null);
       if (res?.ok) apply(await res.json());
-    }, 3000);
+    }, every);
     return () => clearInterval(id);
-  }, [conv, apply]);
+  }, [convId, convState, sending, apply]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -116,7 +120,7 @@ export function ChatView() {
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Falha de conexão. Tente de novo.');
         setMessages((m) => m.filter((x) => !x.streaming));
-        if (!input) setInput(text);
+        setInput((cur) => cur || text);
       } finally {
         setSending(false);
         setChosen(undefined);
@@ -126,7 +130,7 @@ export function ChatView() {
         inputRef.current?.focus();
       }
     },
-    [conv, sending, apply, input],
+    [conv, sending, apply],
   );
 
   const draftAction = useCallback(
@@ -158,7 +162,8 @@ export function ChatView() {
 
   const lastAgentIndex = useMemo(() => messages.map((m) => m.role).lastIndexOf('agent'), [messages]);
   const lastIsAgent = lastAgentIndex === messages.length - 1;
-  const atLimit = (conv?.userMessageCount ?? 0) >= limit;
+  // O limite vale para a conversa com o agent; com um analista, a conversa segue livre.
+  const atLimit = conv?.state === 'with_agent' && conv.userMessageCount >= limit;
   const closed = conv?.state === 'closed';
   const canInteract = !!conv && conv.state === 'with_agent' && !sending && !atLimit;
   const lastOptions = lastIsAgent ? messages[lastAgentIndex]?.cards.find((c) => c.kind === 'options') : undefined;
@@ -187,7 +192,7 @@ export function ChatView() {
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && conv?.hasPendingDraft && !input.trim()) {
       e.preventDefault();
-      void draftAction('confirm');
+      if (!draftBusy) void draftAction('confirm');
       return;
     }
     if (e.key === 'Enter' && !e.shiftKey) {

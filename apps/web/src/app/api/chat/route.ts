@@ -32,8 +32,16 @@ export async function POST(req: Request) {
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const send = (event: ChatStreamEvent | { type: 'fatal'; code: string; message: string }) =>
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+      // Se o navegador desconectar, o turno continua e é salvo; só paramos de enviar.
+      let open = true;
+      const send = (event: ChatStreamEvent | { type: 'fatal'; code: string; message: string }) => {
+        if (!open) return;
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+        } catch {
+          open = false;
+        }
+      };
       try {
         await chat.sendMessage(parsed.data.conversationId, user, parsed.data.message, send);
       } catch (err) {
@@ -42,7 +50,11 @@ export async function POST(req: Request) {
         if (!(err instanceof ChatError)) console.error('[chat] erro no stream:', err);
         send({ type: 'fatal', code, message });
       } finally {
-        controller.close();
+        try {
+          controller.close();
+        } catch {
+          // stream já cancelado pelo cliente
+        }
       }
     },
   });

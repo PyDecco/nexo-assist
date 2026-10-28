@@ -161,7 +161,8 @@ export class ScriptedRunner implements AgentRunner {
     if ((problem || request) && !declinedArticle) {
       const partial = buildPartial(raw);
       const listed = await call<{ error?: boolean }>('listMyTickets', { filter: 'all', presentation: 'none' });
-      const similar = listed.error ? { open: [], reopenable: [] } : findSimilarTickets(await ctx.tickets.listTickets(ctx.user.email, 'all'), partial, ctx.now());
+      const mine = listed.error ? [] : await ctx.tickets.listTickets(ctx.user.email, 'all').catch(() => []);
+      const similar = findSimilarTickets(mine, partial, ctx.now());
       const match = similar.open[0] ?? similar.reopenable[0];
       if (match) {
         const isOpen = similar.open.includes(match);

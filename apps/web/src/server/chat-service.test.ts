@@ -166,6 +166,65 @@ describe('ChatService', () => {
   });
 });
 
+describe('ChatService — corridas e permissões (revisão)', () => {
+  const julia = user('julia.costa@nexo.com.br');
+
+  it('duas confirmações simultâneas criam um único chamado', async () => {
+    const { chat, send, tickets } = setup();
+    const conv = chat.currentConversation(ana);
+    await send(conv.id, 'Preciso de um mouse novo, o meu quebrou, só eu, dá para trabalhar');
+    const before = (await tickets.listTickets(ana.email)).length;
+    const results = await Promise.allSettled([chat.confirmDraft(conv.id, ana), chat.confirmDraft(conv.id, ana)]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect((await tickets.listTickets(ana.email)).length).toBe(before + 1);
+  });
+
+  it('analista que assume durante o turno não é atropelado pela transferência do agent', async () => {
+    const ref: { chat?: ChatService; convId: string } = { convId: '' };
+    const racing: AgentRunner = {
+      name: 'fake',
+      model: 'fake',
+      async run(ctx) {
+        await ref.chat!.assume(ref.convId, rafael); // analista assume enquanto o agent "pensa"
+        ctx.emit({ type: 'transfer', request: { reason: 'user_request', summary: 'x', queue: 'Suporte N1' } });
+        ctx.emit({ type: 'decision', decision: { intent: 'talk_to_analyst', understood: 'x', action: 'x', confidence: 0.9, reasoning: 'x', source: 'model' } });
+      },
+    };
+    const { chat, send } = setup(racing);
+    ref.chat = chat;
+    const conv = chat.currentConversation(ana);
+    ref.convId = conv.id;
+    const events = await send(conv.id, 'Quero um analista');
+    expect(events).toContainEqual({ type: 'state', state: 'with_analyst' });
+    const after = chat.getForEmployee(conv.id, ana).conversation;
+    expect(after.state).toBe('with_analyst');
+    expect(after.assignedAnalyst).toBe(rafael.email);
+    expect(() => chat.analystMessage(conv.id, rafael, 'Oi')).not.toThrow();
+  });
+
+  it('mensagens para o analista não consomem o limite de 30', async () => {
+    const { chat, send, store } = setup();
+    const conv = chat.currentConversation(ana);
+    await send(conv.id, 'Quero falar com um analista');
+    store.updateConversation(conv.id, { userMessageCount: MESSAGE_LIMIT });
+    await chat.assume(conv.id, rafael);
+    await expect(send(conv.id, 'Ainda está aí?')).resolves.toEqual([{ type: 'state', state: 'with_analyst' }]);
+    expect(() => chat.newConversation(ana)).toThrow(/analista/);
+  });
+
+  it('só quem assumiu pode devolver ou encerrar', async () => {
+    const { chat, send } = setup();
+    const conv = chat.currentConversation(ana);
+    await send(conv.id, 'Quero falar com um analista');
+    await chat.assume(conv.id, rafael);
+    expect(() => chat.returnToAgent(conv.id, julia)).toThrow(/Outro analista/);
+    expect(() => chat.close(conv.id, julia)).toThrow(/Outro analista/);
+    chat.close(conv.id, rafael);
+    expect(() => chat.close(conv.id, rafael)).toThrow(/encerrada/);
+    expect(() => chat.analystMessage(conv.id, rafael, 'oi')).toThrow(/encerrada/);
+  });
+});
+
 describe('sessão', () => {
   it('assina e valida o cookie; rejeita adulteração e expiração', () => {
     const token = signSession('ana.souza@nexo.com.br', 's3', 1000);

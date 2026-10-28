@@ -91,9 +91,14 @@ export function ConsoleView({ analyst }: { analyst: User }) {
     }
   }, [filter, q]);
 
+  const selectedRef = useRef<string | null>(null);
+  selectedRef.current = selected;
   const loadDetail = useCallback(async (id: string) => {
     const res = await fetch(`/api/console/conversations/${id}`, { cache: 'no-store' }).catch(() => null);
-    if (res?.ok) setDetail((await res.json()) as Detail);
+    if (!res?.ok) return;
+    const data = (await res.json()) as Detail;
+    // Ignora respostas atrasadas de uma conversa que já não está selecionada.
+    if (data.item.id === selectedRef.current) setDetail(data);
   }, []);
 
   useEffect(() => {
@@ -133,7 +138,7 @@ export function ConsoleView({ analyst }: { analyst: User }) {
       });
       const data = (await res.json()) as Detail & { error?: { message: string } };
       if (!res.ok) throw new Error(data.error?.message ?? 'Ação não concluída.');
-      setDetail(data);
+      if (data.item.id === selectedRef.current) setDetail(data);
       if (action === 'message') setText('');
       void loadList();
     } catch (err) {
