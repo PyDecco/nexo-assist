@@ -45,6 +45,12 @@ importers:
 
   packages/core: {}
 
+  packages/tickets-client:
+    dependencies:
+      '@nexo/core':
+        specifier: workspace:*
+        version: link:../core
+
 packages:
 
   '@cacheable/memory@2.2.0':
