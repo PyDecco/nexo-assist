@@ -67,7 +67,7 @@ Legenda de status: ✅ feito · 🟡 parcial · ⏳ pendente · ➖ não feito (
 | ID | Requisito | Status | Onde |
 |----|-----------|--------|------|
 | E1 | Arquitetura clara: separação interface / agent / serviços, decisões justificadas | ✅ | README → arquitetura; `_bmad-output/.../architecture.md` |
-| E2 | Boas práticas: código organizado, testes onde fazem diferença, tratamento de erros, commits que contam a história | ✅ | ~80 testes + e2e no CI; PRs por story com conventional commits |
+| E2 | Boas práticas: código organizado, testes onde fazem diferença, tratamento de erros, commits que contam a história | ✅ | 72 testes + 12 verificações E2E no CI; PRs por story com conventional commits |
 | E3 | Eficiência: respostas rápidas, uso consciente do modelo, custo por conversa | ✅ | flash-lite, pensamento mínimo, janela de 10 mensagens, limite 30 |
 | E4 | Segurança: chaves fora do código | ✅ | `.env` ignorado; chave nunca logada |
 | E5 | Privacidade: chamados de um funcionário nunca expostos a outro | ✅ | Identidade por closure nas tools; filtro por solicitante no serviço; 403 entre funcionários |

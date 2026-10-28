@@ -33,7 +33,8 @@ Sem `GEMINI_API_KEY` o agent roda com o **runner determinístico** (regras), út
 Outros comandos:
 
 ```bash
-pnpm test            # todos os testes (sem chave de LLM)
+pnpm test            # 72 testes (sem chave de LLM)
+pnpm e2e             # 12 verificações ponta a ponta (com os servidores no ar)
 pnpm lint && pnpm typecheck
 pnpm seed:reset      # apaga os bancos em ./data; os dados de exemplo voltam no próximo start
 pnpm build && pnpm start   # modo produção
@@ -79,7 +80,7 @@ Decisões principais (detalhes em `_bmad-output/planning-artifacts/architecture/
 - **Regras do Anexo A em código.** Prioridade, prazo, "vencido", janela de 7 dias e duplicidade são funções puras e testadas em `packages/core`. O modelo escolhe impacto e urgência; a prioridade sai da função.
 - **Privacidade por construção.** As tools são criadas a cada turno com o e-mail da sessão em closure; nenhuma tool aceita e-mail como argumento. O serviço de chamados filtra tudo por solicitante e responde 404 para chamado alheio.
 - **Um protocolo de eventos.** O runner com Gemini e o determinístico emitem os mesmos eventos (`action`, `text`, `card`, `decision`, `transfer`). A UI e os testes não sabem qual está rodando.
-- **Estado da conversa é a trava.** `with_agent | waiting_analyst | with_analyst | closed`. Fora de `with_agent` o orquestrador grava a mensagem e não chama o agent.
+- **Estado da conversa é a trava.** `with_agent | waiting_analyst | with_analyst | closed`. Fora de `with_agent` o orquestrador grava a mensagem e não chama o agent; antes de salvar um turno ele relê o estado, para não atropelar um analista que assumiu no meio da resposta. O limite de 30 mensagens vale para a conversa com o agent (falar com um analista não consome a cota).
 - **Cada serviço com seu banco.** O serviço de chamados é dono de chamados; a web, de conversas, mensagens e estado. Comunicação só por HTTP. Tudo em SQLite em `./data`, que sobrevive a reinício.
 - **Legado instável é esperado.** Timeout de 3 s e até 3 novas tentativas com backoff; cada tentativa aparece na linha de ações ("serviço de chamados instável, tentando de novo"); se esgotar, o agent avisa e o rascunho fica salvo para confirmar de novo.
 - **NestJS vs Fastify.** Considerei NestJS para o serviço de chamados, mas DI por decorators depende de `emitDecoratorMetadata`, que não é suportado pelo esbuild usado por `tsx` e Vitest. Fastify + zod deu o mesmo resultado (rotas validadas, hooks, injeção via `inject` nos testes) com menos atrito.
@@ -117,7 +118,9 @@ A cada mensagem, o `ChatService`:
 
 - **Regras determinísticas testadas** (`packages/core`): todas as faixas de prioridade, prazos com fim de expediente, fim de semana, madrugada e plantão de críticos, vencimento a partir da última atualização, janela de reabertura e duplicidade.
 - **Fluxos do agent testados ponta a ponta** com o runner determinístico contra o serviço de chamados real em memória (`packages/agent/src/flows.test.ts`): dúvida, consulta com seleção, vencido → analista, abertura com rascunho (nada criado antes de confirmar), duplicidade, reabertura, privacidade, fora de escopo, crítico, pedido de analista, baixa confiança e legado fora do ar.
-- **Orquestração testada** (`apps/web/src/server/chat-service.test.ts`): transferência pausa o agent até devolver, analista só responde após assumir, limite de 30 mensagens, privacidade entre funcionários, decisão sintetizada, falha do modelo, confirmação com o legado fora do ar, persistência após reinício.
+- **Orquestração testada** (`apps/web/src/server/chat-service.test.ts`): transferência pausa o agent até devolver, analista só responde após assumir, limite de 30 mensagens, privacidade entre funcionários, decisão sintetizada, falha do modelo, confirmação com o legado fora do ar, persistência após reinício, confirmação dupla simultânea (um só chamado), analista assumindo no meio de um turno.
+- **E2E no CI** (`scripts/e2e.mjs`, `pnpm e2e`): build de produção, os dois processos no ar e 12 verificações pelas rotas HTTP reais.
+- **Code review independente** antes da entrega: 8 achados (corridas, permissões, estado no cliente), todos corrigidos com testes de regressão no PR #9.
 - **Avaliação com o Gemini real** (`pnpm --filter @nexo/agent smoke`): rodei os cenários do roteiro e corrigi o que falhou com guardrails em código em vez de só mexer no prompt — o modelo não dizia "vencido" (a tool passou a devolver `replyHint`), pulava a pergunta de afetados (virou `impactConfirmedByUser`), transferia vencido para a fila errada (promoção automática do motivo) e reportava sempre 100% de confiança (instrução de calibração).
 - **Transparência como mecanismo de revisão**: cada resposta guarda a decisão e o rastro; o analista vê o mesmo detalhe no console.
 
