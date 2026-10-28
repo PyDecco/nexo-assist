@@ -41,14 +41,14 @@ pnpm build && pnpm start   # modo produção
 pnpm --filter @nexo/agent smoke   # conversas reais contra o Gemini, imprime ações e decisões
 ```
 
-Variáveis (todas em `.env.example`): `GEMINI_API_KEY`, `GEMINI_MODEL` (padrão `gemini-3.5-flash-lite`), `AGENT_RUNNER` (`auto`/`gemini`/`scripted`), `SESSION_SECRET`, `TICKETS_SERVICE_URL`, `TICKETS_SERVICE_TOKEN`, `TICKETS_OUTAGE_RATE` (chance de derrubar o legado, padrão 10%), `TICKETS_OUTAGE_MS` (duração da queda, padrão 2,5 s).
+Variáveis (todas em `.env.example`): `GEMINI_API_KEY`, `GEMINI_MODEL` (padrão `gemini-3.5-flash-lite`), `AGENT_RUNNER` (`auto`/`gemini`/`scripted`), `SESSION_SECRET`, `TICKETS_SERVICE_URL`, `TICKETS_SERVICE_TOKEN`, `TICKETS_OUTAGE_RATE` (chance de derrubar o legado, padrão 10%), `TICKETS_OUTAGE_MS` (duração da queda, padrão 2,5 s), `WEB_DB_PATH` e `TICKETS_DB_PATH` (opcionais; padrão `./data/web.db` e `./data/tickets.db`).
 
 ### Roteiro rápido de teste
 
 1. **Dúvida** — "Qual o horário do service desk?" → responde pela central, sem chamado.
 2. **Consulta sem número** — "Qual o status do meu chamado?" → lista para escolher → INC-20311 aparece **vencido** e o agent oferece um analista.
 3. **Abertura** — "Meu notebook não conecta na VPN, erro 809, uso Windows 11" → o artigo não vale para Windows 11 → pergunta quem é afetado (opções) → "Só eu, reunião com cliente às 14h" → rascunho com prioridade **Alta** e prazo → **Confirmar** cria o chamado.
-4. **Duplicidade/reabertura** — "A senha do SAP bloqueou de novo" → propõe reabrir o INC-20150 (resolvido há 4 dias) em vez de abrir outro.
+4. **Duplicidade/reabertura** — "A senha do SAP bloqueou de novo" → propõe reabrir o INC-20150 (resolvido há 4 dias) em vez de abrir outro. (Garantido no runner determinístico; com o Gemini o caminho pode variar — às vezes ele pergunta os afetados antes e a duplicidade aparece no `draftTicket`.)
 5. **Privacidade** — "Status do REQ-10458" (é da Carla) → não revela.
 6. **Fora de escopo** — "Como peço férias?" → indica o RH.
 7. **Analista** — peça um analista, entre como `rafael.lima@…` em outra janela anônima: a conversa está em "Para você", com o resumo; **Assumir** pausa o agent; responda; **Devolver ao agent** ou **Encerrar**.
