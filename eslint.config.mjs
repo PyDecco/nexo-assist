@@ -11,4 +11,8 @@ export default tseslint.config(
       '@typescript-eslint/consistent-type-imports': 'error',
     },
   },
+  {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: { globals: { fetch: 'readonly', console: 'readonly', process: 'readonly', URL: 'readonly' } },
+  },
 );
